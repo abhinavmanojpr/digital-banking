@@ -9,6 +9,7 @@ import com.digitalbanking.entity.User;
 import com.digitalbanking.exception.InvalidCredentialsException;
 import com.digitalbanking.repository.UserRepository;
 import com.digitalbanking.service.AuthenticationService;
+import com.digitalbanking.security.JwtService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -18,6 +19,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final JwtService jwtService;
 
     @Override
     public LoginResponse login(LoginRequest request) {
@@ -44,8 +46,12 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         throw new InvalidCredentialsException("Account is disabled");
         }
 
+         // Generate JWT token
+        String accessToken = jwtService.generateToken(user.getEmail());
+
         return LoginResponse.builder()
                 .message("Login successful")
+                .accessToken(accessToken)
                 .build();
     }
 }
