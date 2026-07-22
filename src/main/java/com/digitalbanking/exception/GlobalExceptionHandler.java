@@ -31,6 +31,23 @@ public class GlobalExceptionHandler {
         );
     }
 
+    // Handles invalid login credentials
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidCredentialsException(
+            InvalidCredentialsException ex) {
+
+        ErrorResponse errorResponse = ErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.UNAUTHORIZED.value())
+                .error(HttpStatus.UNAUTHORIZED.getReasonPhrase())
+                .message(ex.getMessage())
+                .build();
+
+        return new ResponseEntity<>(
+                errorResponse,
+                HttpStatus.UNAUTHORIZED
+        );
+    }
 
     // Handles @Valid validation errors
     @ExceptionHandler(MethodArgumentNotValidException.class)
