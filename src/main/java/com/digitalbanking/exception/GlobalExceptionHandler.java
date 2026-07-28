@@ -78,4 +78,18 @@ public class GlobalExceptionHandler {
                 HttpStatus.BAD_REQUEST
         );
     }
+        //handles duplicate phone number
+        @ExceptionHandler(PhoneAlreadyExistsException.class)
+        public ResponseEntity<ErrorResponse> handlePhoneAlreadyExistsException(
+                PhoneAlreadyExistsException ex) {
+
+          ErrorResponse error = ErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.CONFLICT.value())
+                .error(HttpStatus.CONFLICT.getReasonPhrase())
+                .message(ex.getMessage())
+                .build();
+
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+        }
 }
