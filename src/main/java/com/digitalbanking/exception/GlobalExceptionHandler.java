@@ -134,4 +134,31 @@ public class GlobalExceptionHandler {
 
         return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
         }
+
+        @ExceptionHandler(InvalidResetTokenException.class)
+        public ResponseEntity<ErrorResponse> handleInvalidResetTokenException(
+                InvalidResetTokenException ex) {
+
+        ErrorResponse error = ErrorResponse.builder()
+                    .message(ex.getMessage())
+                    .status(HttpStatus.BAD_REQUEST.value())
+                    .timestamp(LocalDateTime.now())
+                    .build();
+
+        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+        }
+
+
+        @ExceptionHandler(ExpiredResetTokenException.class)
+        public ResponseEntity<ErrorResponse> handleExpiredResetTokenException(
+                ExpiredResetTokenException ex) {
+
+        ErrorResponse error = ErrorResponse.builder()
+                    .message(ex.getMessage())
+                    .status(HttpStatus.BAD_REQUEST.value())
+                    .timestamp(LocalDateTime.now())
+                    .build();
+
+                return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+        }
 }
