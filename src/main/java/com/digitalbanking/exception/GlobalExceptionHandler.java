@@ -92,4 +92,46 @@ public class GlobalExceptionHandler {
 
                 return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
         }
+
+        //handles old pwd incorrrect
+        @ExceptionHandler(OldPasswordIncorrectException.class)
+        public ResponseEntity<ErrorResponse> handleOldPasswordIncorrectException(
+                OldPasswordIncorrectException ex) {
+
+          ErrorResponse error = ErrorResponse.builder()
+                .status(HttpStatus.BAD_REQUEST.value())
+                .error(HttpStatus.BAD_REQUEST.getReasonPhrase())
+                .message(ex.getMessage())
+                .build();
+
+        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+        }
+
+        //handles password do not  match
+        @ExceptionHandler(PasswordsDoNotMatchException.class)
+        public ResponseEntity<ErrorResponse> handlePasswordsDoNotMatchException(
+                PasswordsDoNotMatchException ex) {
+
+          ErrorResponse error = ErrorResponse.builder()
+                    .status(HttpStatus.BAD_REQUEST.value())
+                    .error(HttpStatus.BAD_REQUEST.getReasonPhrase())
+                    .message(ex.getMessage())
+                    .build();
+
+        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+        }
+
+        //handles same password
+        @ExceptionHandler(SamePasswordException.class)
+        public ResponseEntity<ErrorResponse> handleSamePasswordException(
+                SamePasswordException ex) {
+
+          ErrorResponse error = ErrorResponse.builder()
+                    .status(HttpStatus.BAD_REQUEST.value())
+                    .error(HttpStatus.BAD_REQUEST.getReasonPhrase())
+                    .message(ex.getMessage())
+                    .build();
+
+        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+        }
 }

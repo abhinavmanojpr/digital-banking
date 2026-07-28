@@ -12,10 +12,17 @@ import com.digitalbanking.dto.request.RegisterRequest;
 import com.digitalbanking.dto.response.LoginResponse;
 import com.digitalbanking.dto.response.RegisterResponse;
 import com.digitalbanking.service.AuthenticationService;
+import com.digitalbanking.service.CustomerService;
 import com.digitalbanking.service.RegistrationService;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+
+import com.digitalbanking.dto.request.ChangePasswordRequest;
+import com.digitalbanking.dto.response.ChangePasswordResponse;
+
+import org.springframework.web.bind.annotation.PutMapping;
+
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -24,6 +31,7 @@ public class RegistrationController {
 
     private final RegistrationService registrationService;
     private final AuthenticationService authenticationService;
+    private final CustomerService customerService;
 
     @PostMapping("/register")
     public ResponseEntity<RegisterResponse> register(
@@ -44,5 +52,13 @@ public class RegistrationController {
 
         return ResponseEntity
                 .ok(response);
+    }
+
+    
+    @PutMapping("/change-password")
+    public ResponseEntity<ChangePasswordResponse> changePassword(
+            @Valid @RequestBody ChangePasswordRequest request) {
+
+        return ResponseEntity.ok(customerService.changePassword(request));
     }
 }
