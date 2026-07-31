@@ -161,4 +161,58 @@ public class GlobalExceptionHandler {
 
                 return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
         }
+
+        @ExceptionHandler(UserNotFoundException.class)
+        public ResponseEntity<ErrorResponse> handleUserNotFoundException(
+                UserNotFoundException ex) {
+
+                ErrorResponse error = ErrorResponse.builder()
+                    .status(HttpStatus.NOT_FOUND.value())
+                    .error("Not Found")
+                    .message(ex.getMessage())
+                    .build();
+
+                return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
+        }
+
+        @ExceptionHandler(CustomerNotFoundException.class)
+        public ResponseEntity<ErrorResponse> handleCustomerNotFoundException(
+                CustomerNotFoundException ex) {
+
+                ErrorResponse error = ErrorResponse.builder()
+                    .status(HttpStatus.NOT_FOUND.value())
+                    .error("Not Found")
+                    .message(ex.getMessage())
+                    .build();
+
+                return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
+        }
+
+        @ExceptionHandler(AccountNotFoundException.class)
+        public ResponseEntity<ErrorResponse> handleAccountNotFoundException(
+                AccountNotFoundException ex) {
+
+        ErrorResponse error = ErrorResponse.builder()
+                    .status(HttpStatus.NOT_FOUND.value())
+                    .error("Not Found")
+                    .message(ex.getMessage())
+                    .timestamp(LocalDateTime.now())
+                    .build();
+
+        return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
+        }
+
+        @ExceptionHandler(UnauthorizedAccountAccessException.class)
+        public ResponseEntity<ErrorResponse> handleUnauthorizedAccountAccessException(
+                UnauthorizedAccountAccessException ex) {
+
+        ErrorResponse error = ErrorResponse.builder()
+                    .status(HttpStatus.FORBIDDEN.value())
+                    .error("Forbidden")
+                    .message(ex.getMessage())
+                    .timestamp(LocalDateTime.now())
+                    .build();
+
+        return new ResponseEntity<>(error, HttpStatus.FORBIDDEN);
+        }
 }
