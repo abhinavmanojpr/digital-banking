@@ -229,4 +229,18 @@ public class GlobalExceptionHandler {
 
                 return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
         }
+
+        @ExceptionHandler(SameAccountTransferException.class)
+        public ResponseEntity<ErrorResponse> handleSameAccountTransferException(
+                SameAccountTransferException ex) {
+
+                ErrorResponse error = ErrorResponse.builder()
+                    .status(HttpStatus.BAD_REQUEST.value())
+                    .error("Bad Request")
+                    .message(ex.getMessage())
+                    .timestamp(LocalDateTime.now())
+                    .build();
+
+                return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+        }
 }

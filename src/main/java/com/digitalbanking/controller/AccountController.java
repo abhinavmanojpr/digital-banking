@@ -22,6 +22,8 @@ import com.digitalbanking.dto.response.DepositResponse;
 
 import com.digitalbanking.dto.request.WithdrawRequest;
 import com.digitalbanking.dto.response.WithdrawResponse;
+import com.digitalbanking.dto.request.TransferRequest;
+import com.digitalbanking.dto.response.TransferResponse;
 
 
 @RestController
@@ -76,4 +78,14 @@ public class AccountController {
 
                 return ResponseEntity.ok(response);
         }
+
+        @PostMapping("/transfer")
+        public ResponseEntity<TransferResponse> transfer(
+                        @Valid @RequestBody TransferRequest request) {
+
+                TransferResponse response = accountService.transfer(request);
+
+                return ResponseEntity.ok(response);
+        }
+
 }

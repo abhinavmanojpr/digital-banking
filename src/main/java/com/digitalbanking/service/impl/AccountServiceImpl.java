@@ -33,7 +33,9 @@ import com.digitalbanking.repository.CustomerRepository;
 import com.digitalbanking.repository.TransactionRepository;
 import com.digitalbanking.repository.UserRepository;
 import com.digitalbanking.service.AccountService;
-
+import com.digitalbanking.dto.request.TransferRequest;
+import com.digitalbanking.dto.response.TransferResponse;
+import com.digitalbanking.exception.SameAccountTransferException;
 
 
 import lombok.RequiredArgsConstructor;
@@ -229,6 +231,75 @@ public class AccountServiceImpl implements AccountService {
                     .previousBalance(previousBalance)
                     .withdrawnAmount(request.getAmount())
                     .currentBalance(currentBalance)
+                    .build();
+        }
+
+        @Override
+        @Transactional
+        public TransferResponse transfer(TransferRequest request) {
+
+        // Sender account must belong to logged-in user
+                Account senderAccount =getCustomerAccount(request.getFromAccountNumber());
+
+                // Sender and receiver cannot be same
+                if (request.getFromAccountNumber()
+                        .equals(request.getToAccountNumber())) {
+
+                        throw new SameAccountTransferException(
+                "Sender and receiver account cannot be the same");
+                }
+
+                // Receiver account can belong to anyone
+                Account receiverAccount = accountRepository
+                        .findByAccountNumber(request.getToAccountNumber())
+                        .orElseThrow(() ->
+                            new AccountNotFoundException("Receiver account not found"));
+
+                BigDecimal amount = request.getAmount();
+
+                BigDecimal senderBalance = senderAccount.getBalance();
+
+                if (senderBalance.compareTo(amount) < 0) {
+                        throw new InsufficientBalanceException(
+                        "Insufficient account balance");
+                }           
+
+                BigDecimal updatedSenderBalance =
+                        senderBalance.subtract(amount);
+
+                BigDecimal updatedReceiverBalance =
+                        receiverAccount.getBalance().add(amount);
+
+                senderAccount.setBalance(updatedSenderBalance);
+                receiverAccount.setBalance(updatedReceiverBalance);
+
+                accountRepository.save(senderAccount);
+                accountRepository.save(receiverAccount);
+
+                Transaction senderTransaction = Transaction.builder()
+                        .transactionType(TransactionType.TRANSFER)
+                        .amount(amount)
+                        .balanceAfterTransaction(updatedSenderBalance)
+                        .account(senderAccount)
+                        .build();
+
+                Transaction receiverTransaction = Transaction.builder()
+                        .transactionType(TransactionType.TRANSFER)
+                        .amount(amount)
+                        .balanceAfterTransaction(updatedReceiverBalance)
+                        .account(receiverAccount)
+                        .build();
+
+                transactionRepository.save(senderTransaction);
+                transactionRepository.save(receiverTransaction);
+
+                return TransferResponse.builder()
+                    .message("Amount transferred successfully")
+                    .fromAccountNumber(senderAccount.getAccountNumber())
+                    .toAccountNumber(receiverAccount.getAccountNumber())
+                    .transferredAmount(amount)
+                    .senderBalance(updatedSenderBalance)
+                    .receiverBalance(updatedReceiverBalance)
                     .build();
         }
 }
