@@ -10,4 +10,5 @@ import com.digitalbanking.entity.Transaction;
 public interface TransactionRepository extends JpaRepository<Transaction, Long> {
 
     List<Transaction> findByAccount(Account account);
+    List<Transaction> findByAccountOrderByCreatedAtDesc(Account account);
 }

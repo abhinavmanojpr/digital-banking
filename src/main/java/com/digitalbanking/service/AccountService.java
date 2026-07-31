@@ -6,8 +6,10 @@ import com.digitalbanking.dto.request.TransferRequest;
 import com.digitalbanking.dto.request.WithdrawRequest;
 import com.digitalbanking.dto.response.AccountDetailsResponse;
 import com.digitalbanking.dto.response.AccountResponse;
+import com.digitalbanking.dto.response.BalanceResponse;
 import com.digitalbanking.dto.response.CreateAccountResponse;
 import com.digitalbanking.dto.response.DepositResponse;
+import com.digitalbanking.dto.response.TransactionResponse;
 import com.digitalbanking.dto.response.TransferResponse;
 import com.digitalbanking.dto.response.WithdrawResponse;
 
@@ -22,4 +24,6 @@ public interface AccountService {
     DepositResponse deposit(String accountNumber, DepositRequest request);
     WithdrawResponse withdraw(String accountNumber,WithdrawRequest request);
     TransferResponse transfer(TransferRequest request);
+    List<TransactionResponse> getTransactionHistory(String accountNumber);
+    BalanceResponse getBalance(String accountNumber);
 }

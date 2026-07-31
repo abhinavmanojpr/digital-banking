@@ -14,8 +14,10 @@ import com.digitalbanking.dto.request.DepositRequest;
 import com.digitalbanking.dto.request.WithdrawRequest;
 import com.digitalbanking.dto.response.AccountDetailsResponse;
 import com.digitalbanking.dto.response.AccountResponse;
+import com.digitalbanking.dto.response.BalanceResponse;
 import com.digitalbanking.dto.response.CreateAccountResponse;
 import com.digitalbanking.dto.response.DepositResponse;
+import com.digitalbanking.dto.response.TransactionResponse;
 import com.digitalbanking.dto.response.WithdrawResponse;
 import com.digitalbanking.entity.Account;
 import com.digitalbanking.entity.Customer;
@@ -301,5 +303,33 @@ public class AccountServiceImpl implements AccountService {
                     .senderBalance(updatedSenderBalance)
                     .receiverBalance(updatedReceiverBalance)
                     .build();
+        }
+
+        @Override
+        public List<TransactionResponse> getTransactionHistory(String accountNumber) {
+
+                Account account = getCustomerAccount(accountNumber);
+
+                List<Transaction> transactions =transactionRepository.findByAccountOrderByCreatedAtDesc(account);
+
+                return transactions.stream()
+                        .map(transaction -> TransactionResponse.builder()
+                        .transactionType(transaction.getTransactionType())
+                        .amount(transaction.getAmount())
+                        .balanceAfterTransaction(transaction.getBalanceAfterTransaction())
+                        .createdAt(transaction.getCreatedAt())
+                        .build())
+                        .toList();
+        }
+
+        @Override
+        public BalanceResponse getBalance(String accountNumber) {
+
+                Account account = getCustomerAccount(accountNumber);
+
+                return BalanceResponse.builder()
+                        .accountNumber(account.getAccountNumber())
+                        .balance(account.getBalance())
+                        .build();
         }
 }

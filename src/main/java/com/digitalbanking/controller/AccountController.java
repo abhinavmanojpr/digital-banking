@@ -16,10 +16,10 @@ import java.util.List;
 
 import com.digitalbanking.dto.response.AccountDetailsResponse;
 import com.digitalbanking.dto.response.AccountResponse;
-
+import com.digitalbanking.dto.response.BalanceResponse;
 import com.digitalbanking.dto.request.DepositRequest;
 import com.digitalbanking.dto.response.DepositResponse;
-
+import com.digitalbanking.dto.response.TransactionResponse;
 import com.digitalbanking.dto.request.WithdrawRequest;
 import com.digitalbanking.dto.response.WithdrawResponse;
 import com.digitalbanking.dto.request.TransferRequest;
@@ -88,4 +88,22 @@ public class AccountController {
                 return ResponseEntity.ok(response);
         }
 
+
+        @GetMapping("/{accountNumber}/transactions")
+        public ResponseEntity<List<TransactionResponse>> getTransactionHistory(
+                @PathVariable String accountNumber) {
+
+                List<TransactionResponse> response =accountService.getTransactionHistory(accountNumber);
+
+                return ResponseEntity.ok(response);
+        }
+
+        @GetMapping("/{accountNumber}/balance")
+        public ResponseEntity<BalanceResponse> getBalance(
+                @PathVariable String accountNumber) {
+
+                BalanceResponse response =accountService.getBalance(accountNumber);
+
+                return ResponseEntity.ok(response);
+        }
 }
