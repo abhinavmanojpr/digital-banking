@@ -19,14 +19,19 @@ import com.digitalbanking.entity.Account;
 import com.digitalbanking.entity.Customer;
 import com.digitalbanking.entity.User;
 import com.digitalbanking.enums.AccountStatus;
+import com.digitalbanking.entity.Transaction;
+import com.digitalbanking.enums.TransactionType;
 import com.digitalbanking.exception.AccountNotFoundException;
 import com.digitalbanking.exception.CustomerNotFoundException;
 import com.digitalbanking.exception.UnauthorizedAccountAccessException;
 import com.digitalbanking.exception.UserNotFoundException;
 import com.digitalbanking.repository.AccountRepository;
 import com.digitalbanking.repository.CustomerRepository;
+import com.digitalbanking.repository.TransactionRepository;
 import com.digitalbanking.repository.UserRepository;
 import com.digitalbanking.service.AccountService;
+
+
 
 import lombok.RequiredArgsConstructor;
 
@@ -37,6 +42,7 @@ public class AccountServiceImpl implements AccountService {
     private final AccountRepository accountRepository;
     private final CustomerRepository customerRepository;
     private final UserRepository userRepository;
+    private final TransactionRepository transactionRepository;
 
     @Override
     public CreateAccountResponse createAccount(CreateAccountRequest request) {
@@ -155,23 +161,32 @@ public class AccountServiceImpl implements AccountService {
         public DepositResponse deposit(String accountNumber,
                                DepositRequest request) {
 
-        Account account = getCustomerAccount(accountNumber);
+                Account account = getCustomerAccount(accountNumber);
 
-        BigDecimal previousBalance = account.getBalance();
+                BigDecimal previousBalance = account.getBalance();
 
-        BigDecimal currentBalance =
-                    previousBalance.add(request.getAmount());
+                BigDecimal currentBalance =
+                            previousBalance.add(request.getAmount());
 
-        account.setBalance(currentBalance);
+                account.setBalance(currentBalance);
 
-        accountRepository.save(account);
+                accountRepository.save(account);
 
-        return DepositResponse.builder()
-            .message("Amount deposited successfully")
-            .accountNumber(account.getAccountNumber())
-            .previousBalance(previousBalance)
-            .depositedAmount(request.getAmount())
-            .currentBalance(currentBalance)
-            .build();
+                Transaction transaction = Transaction.builder()
+                    .transactionType(TransactionType.DEPOSIT)
+                        .amount(request.getAmount())
+                    .balanceAfterTransaction(currentBalance)
+                    .account(account)
+                    .build();
+
+                transactionRepository.save(transaction);
+
+                return DepositResponse.builder()
+                        .message("Amount deposited successfully")
+                        .accountNumber(account.getAccountNumber())
+                        .previousBalance(previousBalance)
+                        .depositedAmount(request.getAmount())
+                        .currentBalance(currentBalance)
+                        .build();
         }
 }
