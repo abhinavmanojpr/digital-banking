@@ -1,16 +1,20 @@
 package com.digitalbanking.service.impl;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.digitalbanking.dto.request.CreateAccountRequest;
+import com.digitalbanking.dto.request.DepositRequest;
 import com.digitalbanking.dto.response.AccountDetailsResponse;
 import com.digitalbanking.dto.response.AccountResponse;
 import com.digitalbanking.dto.response.CreateAccountResponse;
+import com.digitalbanking.dto.response.DepositResponse;
 import com.digitalbanking.entity.Account;
 import com.digitalbanking.entity.Customer;
 import com.digitalbanking.entity.User;
@@ -145,4 +149,29 @@ public class AccountServiceImpl implements AccountService {
 
         return String.valueOf(nextAccountNumber);
     }
+
+        @Override
+        @Transactional
+        public DepositResponse deposit(String accountNumber,
+                               DepositRequest request) {
+
+        Account account = getCustomerAccount(accountNumber);
+
+        BigDecimal previousBalance = account.getBalance();
+
+        BigDecimal currentBalance =
+                    previousBalance.add(request.getAmount());
+
+        account.setBalance(currentBalance);
+
+        accountRepository.save(account);
+
+        return DepositResponse.builder()
+            .message("Amount deposited successfully")
+            .accountNumber(account.getAccountNumber())
+            .previousBalance(previousBalance)
+            .depositedAmount(request.getAmount())
+            .currentBalance(currentBalance)
+            .build();
+        }
 }

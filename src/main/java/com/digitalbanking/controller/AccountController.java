@@ -17,6 +17,10 @@ import java.util.List;
 import com.digitalbanking.dto.response.AccountDetailsResponse;
 import com.digitalbanking.dto.response.AccountResponse;
 
+import com.digitalbanking.dto.request.DepositRequest;
+import com.digitalbanking.dto.response.DepositResponse;
+
+
 @RestController
 @RequestMapping("/api/v1/accounts")
 @RequiredArgsConstructor
@@ -48,5 +52,15 @@ public class AccountController {
 
         return ResponseEntity.ok(
             accountService.getAccount(accountNumber));
+        }
+
+        @PostMapping("/{accountNumber}/deposit")
+        public ResponseEntity<DepositResponse> deposit(
+                @PathVariable String accountNumber,
+                @Valid @RequestBody DepositRequest request) {
+
+                DepositResponse response =  accountService.deposit(accountNumber, request);
+
+                return ResponseEntity.ok(response);
         }
 }
