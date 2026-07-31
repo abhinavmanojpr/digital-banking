@@ -20,6 +20,9 @@ import com.digitalbanking.dto.response.AccountResponse;
 import com.digitalbanking.dto.request.DepositRequest;
 import com.digitalbanking.dto.response.DepositResponse;
 
+import com.digitalbanking.dto.request.WithdrawRequest;
+import com.digitalbanking.dto.response.WithdrawResponse;
+
 
 @RestController
 @RequestMapping("/api/v1/accounts")
@@ -60,6 +63,16 @@ public class AccountController {
                 @Valid @RequestBody DepositRequest request) {
 
                 DepositResponse response =  accountService.deposit(accountNumber, request);
+
+                return ResponseEntity.ok(response);
+        }
+
+        @PostMapping("/{accountNumber}/withdraw")
+        public ResponseEntity<WithdrawResponse> withdraw(
+                @PathVariable String accountNumber,
+                @Valid @RequestBody WithdrawRequest request) {
+
+                WithdrawResponse response =accountService.withdraw(accountNumber, request);
 
                 return ResponseEntity.ok(response);
         }

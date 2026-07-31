@@ -11,10 +11,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.digitalbanking.dto.request.CreateAccountRequest;
 import com.digitalbanking.dto.request.DepositRequest;
+import com.digitalbanking.dto.request.WithdrawRequest;
 import com.digitalbanking.dto.response.AccountDetailsResponse;
 import com.digitalbanking.dto.response.AccountResponse;
 import com.digitalbanking.dto.response.CreateAccountResponse;
 import com.digitalbanking.dto.response.DepositResponse;
+import com.digitalbanking.dto.response.WithdrawResponse;
 import com.digitalbanking.entity.Account;
 import com.digitalbanking.entity.Customer;
 import com.digitalbanking.entity.User;
@@ -23,6 +25,7 @@ import com.digitalbanking.entity.Transaction;
 import com.digitalbanking.enums.TransactionType;
 import com.digitalbanking.exception.AccountNotFoundException;
 import com.digitalbanking.exception.CustomerNotFoundException;
+import com.digitalbanking.exception.InsufficientBalanceException;
 import com.digitalbanking.exception.UnauthorizedAccountAccessException;
 import com.digitalbanking.exception.UserNotFoundException;
 import com.digitalbanking.repository.AccountRepository;
@@ -188,5 +191,44 @@ public class AccountServiceImpl implements AccountService {
                         .depositedAmount(request.getAmount())
                         .currentBalance(currentBalance)
                         .build();
+        }
+
+        @Override
+        @Transactional
+        public WithdrawResponse withdraw(String accountNumber,
+                                 WithdrawRequest request) {
+
+                Account account = getCustomerAccount(accountNumber);
+
+                BigDecimal previousBalance = account.getBalance();
+
+                // Check for sufficient balance
+                if (previousBalance.compareTo(request.getAmount()) < 0) {
+                        throw new InsufficientBalanceException(
+                        "Insufficient account balance");
+                }
+
+                BigDecimal currentBalance =previousBalance.subtract(request.getAmount());
+
+                account.setBalance(currentBalance);
+
+                accountRepository.save(account);
+
+                Transaction transaction = Transaction.builder()
+                    .transactionType(TransactionType.WITHDRAW)
+                    .amount(request.getAmount())
+                    .balanceAfterTransaction(currentBalance)
+                    .account(account)
+                    .build();
+
+                transactionRepository.save(transaction);
+
+                return WithdrawResponse.builder()
+                    .message("Amount withdrawn successfully")
+                    .accountNumber(account.getAccountNumber())
+                    .previousBalance(previousBalance)
+                    .withdrawnAmount(request.getAmount())
+                    .currentBalance(currentBalance)
+                    .build();
         }
 }
