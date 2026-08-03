@@ -4,8 +4,6 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,315 +19,404 @@ import com.digitalbanking.dto.response.TransactionResponse;
 import com.digitalbanking.dto.response.WithdrawResponse;
 import com.digitalbanking.entity.Account;
 import com.digitalbanking.entity.Customer;
-import com.digitalbanking.entity.User;
 import com.digitalbanking.enums.AccountStatus;
 import com.digitalbanking.entity.Transaction;
 import com.digitalbanking.enums.TransactionType;
 import com.digitalbanking.exception.AccountNotFoundException;
-import com.digitalbanking.exception.CustomerNotFoundException;
+
 import com.digitalbanking.exception.InsufficientBalanceException;
 import com.digitalbanking.exception.UnauthorizedAccountAccessException;
-import com.digitalbanking.exception.UserNotFoundException;
 import com.digitalbanking.repository.AccountRepository;
-import com.digitalbanking.repository.CustomerRepository;
+
 import com.digitalbanking.repository.TransactionRepository;
-import com.digitalbanking.repository.UserRepository;
+
 import com.digitalbanking.service.AccountService;
+import com.digitalbanking.util.AuthenticatedUserUtil;
 import com.digitalbanking.dto.request.TransferRequest;
 import com.digitalbanking.dto.response.TransferResponse;
 import com.digitalbanking.exception.SameAccountTransferException;
+import com.digitalbanking.constants.AccountConstants;
+import com.digitalbanking.constants.MessageConstants;
 
 
 import lombok.RequiredArgsConstructor;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 @RequiredArgsConstructor
 public class AccountServiceImpl implements AccountService {
 
+
+    private static final Logger logger =LoggerFactory.getLogger(AccountServiceImpl.class);    
     private final AccountRepository accountRepository;
-    private final CustomerRepository customerRepository;
-    private final UserRepository userRepository;
     private final TransactionRepository transactionRepository;
+    private final AuthenticatedUserUtil authenticatedUserUtil;
+    
 
     @Override
-    public CreateAccountResponse createAccount(CreateAccountRequest request) {
+public CreateAccountResponse createAccount(CreateAccountRequest request) {
 
-        Customer customer = getAuthenticatedCustomer();
+   Customer customer = authenticatedUserUtil.getAuthenticatedCustomer();
 
-        String accountNumber = generateAccountNumber();
+    logger.info("Creating {} account for customer ID: {}",
+            request.getAccountType(),
+            customer.getId());
 
-        Account account = Account.builder()
-                .accountNumber(accountNumber)
-                .accountType(request.getAccountType())
-                .balance(request.getInitialDeposit())
-                .status(AccountStatus.ACTIVE)
-                .customer(customer)
-                .build();
+    String accountNumber = generateAccountNumber();
 
-        accountRepository.save(account);
+    Account account = Account.builder()
+            .accountNumber(accountNumber)
+            .accountType(request.getAccountType())
+            .balance(request.getInitialDeposit())
+            .status(AccountStatus.ACTIVE)
+            .customer(customer)
+            .build();
 
-        return CreateAccountResponse.builder()
-                .message("Account created successfully")
-                .accountNumber(account.getAccountNumber())
-                .accountType(account.getAccountType())
-                .balance(account.getBalance())
-                .status(account.getStatus())
-                .build();
+    accountRepository.save(account);
+
+    logger.info("Account {} created successfully with initial balance {}",
+            account.getAccountNumber(),
+            account.getBalance());
+
+    return CreateAccountResponse.builder()
+            .message(MessageConstants.ACCOUNT_CREATED)
+            .accountNumber(account.getAccountNumber())
+            .accountType(account.getAccountType())
+            .balance(account.getBalance())
+            .status(account.getStatus())
+            .build();
+}
+
+@Override
+public List<AccountResponse> getMyAccounts() {
+
+    Customer customer =authenticatedUserUtil.getAuthenticatedCustomer();
+
+    logger.debug("Fetching accounts for customer ID: {}",
+            customer.getId());
+
+    List<Account> accounts = accountRepository.findByCustomer(customer);
+
+    logger.info("Retrieved {} account(s) for customer ID: {}",
+            accounts.size(),
+            customer.getId());
+
+    return accounts.stream()
+            .map(account -> AccountResponse.builder()
+                    .accountNumber(account.getAccountNumber())
+                    .accountType(account.getAccountType())
+                    .balance(account.getBalance())
+                    .status(account.getStatus())
+                    .build())
+            .toList();
+}
+
+@Override
+public AccountDetailsResponse getAccount(String accountNumber) {
+
+    logger.debug("Fetching account details for account: {}",
+            accountNumber);
+
+    Account account = getCustomerAccount(accountNumber);
+
+    logger.info("Account details retrieved for account {}",
+            accountNumber);
+
+    return AccountDetailsResponse.builder()
+            .accountNumber(account.getAccountNumber())
+            .accountType(account.getAccountType())
+            .balance(account.getBalance())
+            .status(account.getStatus())
+            .build();
+}
+
+/**
+ * Returns the currently authenticated customer.
+ */
+
+/**
+ * Returns the account if it belongs to the authenticated customer.
+ */
+private Account getCustomerAccount(String accountNumber) {
+
+   Customer customer =authenticatedUserUtil.getAuthenticatedCustomer();
+
+    logger.debug("Validating ownership of account {} for customer ID {}",
+            accountNumber,
+            customer.getId());
+
+    Account account = accountRepository.findByAccountNumber(accountNumber)
+            .orElseThrow(() -> {
+                logger.error("Account not found: {}", accountNumber);
+                 return new AccountNotFoundException(MessageConstants.ACCOUNT_NOT_FOUND);
+            });
+
+    if (!account.getCustomer().getId().equals(customer.getId())) {
+
+        logger.warn("Unauthorized access attempt on account {} by customer ID {}",
+                accountNumber,
+                customer.getId());
+
+       throw new UnauthorizedAccountAccessException( MessageConstants.UNAUTHORIZED_ACCOUNT_ACCESS);
     }
 
-    @Override
-    public List<AccountResponse> getMyAccounts() {
+    return account;
+}
 
-        Customer customer = getAuthenticatedCustomer();
+/**
+ * Generates the next sequential account number.
+ */
+private String generateAccountNumber() {
 
-        List<Account> accounts = accountRepository.findByCustomer(customer);
+    Optional<Account> latestAccount =
+            accountRepository.findTopByOrderByIdDesc();
 
-        return accounts.stream()
-                .map(account -> AccountResponse.builder()
-                        .accountNumber(account.getAccountNumber())
-                        .accountType(account.getAccountType())
-                        .balance(account.getBalance())
-                        .status(account.getStatus())
-                        .build())
-                .toList();
-    }
+   if (latestAccount.isEmpty()) {
 
-    @Override
-    public AccountDetailsResponse getAccount(String accountNumber) {
+    logger.info("No existing accounts found. Starting account numbering from {}",
+            AccountConstants.INITIAL_ACCOUNT_NUMBER);
 
-        Account account = getCustomerAccount(accountNumber);
+    return String.valueOf(AccountConstants.INITIAL_ACCOUNT_NUMBER);
+}
 
-        return AccountDetailsResponse.builder()
-                .accountNumber(account.getAccountNumber())
-                .accountType(account.getAccountType())
-                .balance(account.getBalance())
-                .status(account.getStatus())
-                .build();
-    }
+    long nextAccountNumber =
+            Long.parseLong(latestAccount.get().getAccountNumber()) + 1;
 
-    /**
-     * Returns the currently authenticated customer.
-     */
-    private Customer getAuthenticatedCustomer() {
+    logger.debug("Generated next account number: {}", nextAccountNumber);
 
-        Authentication authentication =
-                SecurityContextHolder.getContext().getAuthentication();
-
-        String email = authentication.getName();
-
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() ->
-                        new UserNotFoundException("User not found"));
-
-        return customerRepository.findByUser(user)
-                .orElseThrow(() ->
-                        new CustomerNotFoundException("Customer not found"));
-    }
-
-    /**
-     * Returns the account if it belongs to the authenticated customer.
-     */
-    private Account getCustomerAccount(String accountNumber) {
-
-        Customer customer = getAuthenticatedCustomer();
-
-        Account account = accountRepository.findByAccountNumber(accountNumber)
-                .orElseThrow(() ->
-                        new AccountNotFoundException("Account not found"));
-
-        if (!account.getCustomer().getId().equals(customer.getId())) {
-            throw new UnauthorizedAccountAccessException(
-                    "You are not authorized to access this account");
-        }
-
-        return account;
-    }
-
-    /**
-     * Generates the next sequential account number.
-     */
-    private String generateAccountNumber() {
-
-        Optional<Account> latestAccount =
-                accountRepository.findTopByOrderByIdDesc();
-
-        if (latestAccount.isEmpty()) {
-            return "1000000001";
-        }
-
-        long nextAccountNumber =
-                Long.parseLong(latestAccount.get().getAccountNumber()) + 1;
-
-        return String.valueOf(nextAccountNumber);
-    }
-
-        @Override
-        @Transactional
-        public DepositResponse deposit(String accountNumber,
+    return String.valueOf(nextAccountNumber);
+}
+       
+@Override
+@Transactional
+public DepositResponse deposit(String accountNumber,
                                DepositRequest request) {
 
-                Account account = getCustomerAccount(accountNumber);
+    logger.info("Deposit initiated for account {} with amount {}",
+            accountNumber,
+            request.getAmount());
 
-                BigDecimal previousBalance = account.getBalance();
+    Account account = getCustomerAccount(accountNumber);
 
-                BigDecimal currentBalance =
-                            previousBalance.add(request.getAmount());
+    BigDecimal previousBalance = account.getBalance();
 
-                account.setBalance(currentBalance);
+    BigDecimal currentBalance =
+            previousBalance.add(request.getAmount());
 
-                accountRepository.save(account);
+    account.setBalance(currentBalance);
 
-                Transaction transaction = Transaction.builder()
-                    .transactionType(TransactionType.DEPOSIT)
-                        .amount(request.getAmount())
-                    .balanceAfterTransaction(currentBalance)
-                    .account(account)
-                    .build();
+    accountRepository.save(account);
 
-                transactionRepository.save(transaction);
+    Transaction transaction = Transaction.builder()
+            .transactionType(TransactionType.DEPOSIT)
+            .amount(request.getAmount())
+            .balanceAfterTransaction(currentBalance)
+            .account(account)
+            .build();
 
-                return DepositResponse.builder()
-                        .message("Amount deposited successfully")
-                        .accountNumber(account.getAccountNumber())
-                        .previousBalance(previousBalance)
-                        .depositedAmount(request.getAmount())
-                        .currentBalance(currentBalance)
-                        .build();
-        }
+    transactionRepository.save(transaction);
 
-        @Override
-        @Transactional
-        public WithdrawResponse withdraw(String accountNumber,
+    logger.info("Deposit successful for account {}. New balance: {}",
+            account.getAccountNumber(),
+            currentBalance);
+
+    return DepositResponse.builder()
+          .message(MessageConstants.AMOUNT_DEPOSITED)
+            .accountNumber(account.getAccountNumber())
+            .previousBalance(previousBalance)
+            .depositedAmount(request.getAmount())
+            .currentBalance(currentBalance)
+            .build();
+}
+
+@Override
+@Transactional
+public WithdrawResponse withdraw(String accountNumber,
                                  WithdrawRequest request) {
 
-                Account account = getCustomerAccount(accountNumber);
+    logger.info("Withdrawal initiated for account {} with amount {}",
+            accountNumber,
+            request.getAmount());
 
-                BigDecimal previousBalance = account.getBalance();
+    Account account = getCustomerAccount(accountNumber);
 
-                // Check for sufficient balance
-                if (previousBalance.compareTo(request.getAmount()) < 0) {
-                        throw new InsufficientBalanceException(
-                        "Insufficient account balance");
-                }
+    BigDecimal previousBalance = account.getBalance();
 
-                BigDecimal currentBalance =previousBalance.subtract(request.getAmount());
+    // Check for sufficient balance
+    if (previousBalance.compareTo(request.getAmount()) < 0) {
 
-                account.setBalance(currentBalance);
+        logger.warn("Withdrawal failed due to insufficient balance. Account: {}, Available: {}, Requested: {}",
+                accountNumber,
+                previousBalance,
+                request.getAmount());
 
-                accountRepository.save(account);
+       throw new InsufficientBalanceException(
+        MessageConstants.INSUFFICIENT_BALANCE);
+    }
 
-                Transaction transaction = Transaction.builder()
-                    .transactionType(TransactionType.WITHDRAW)
-                    .amount(request.getAmount())
-                    .balanceAfterTransaction(currentBalance)
-                    .account(account)
-                    .build();
+    BigDecimal currentBalance =
+            previousBalance.subtract(request.getAmount());
 
-                transactionRepository.save(transaction);
+    account.setBalance(currentBalance);
 
-                return WithdrawResponse.builder()
-                    .message("Amount withdrawn successfully")
-                    .accountNumber(account.getAccountNumber())
-                    .previousBalance(previousBalance)
-                    .withdrawnAmount(request.getAmount())
-                    .currentBalance(currentBalance)
-                    .build();
-        }
+    accountRepository.save(account);
 
-        @Override
-        @Transactional
-        public TransferResponse transfer(TransferRequest request) {
+    Transaction transaction = Transaction.builder()
+            .transactionType(TransactionType.WITHDRAW)
+            .amount(request.getAmount())
+            .balanceAfterTransaction(currentBalance)
+            .account(account)
+            .build();
 
-        // Sender account must belong to logged-in user
-                Account senderAccount =getCustomerAccount(request.getFromAccountNumber());
+    transactionRepository.save(transaction);
 
-                // Sender and receiver cannot be same
-                if (request.getFromAccountNumber()
-                        .equals(request.getToAccountNumber())) {
+    logger.info("Withdrawal successful for account {}. Remaining balance: {}",
+            account.getAccountNumber(),
+            currentBalance);
 
-                        throw new SameAccountTransferException(
-                "Sender and receiver account cannot be the same");
-                }
+    return WithdrawResponse.builder()
+           .message(MessageConstants.AMOUNT_WITHDRAWN)
+            .accountNumber(account.getAccountNumber())
+            .previousBalance(previousBalance)
+            .withdrawnAmount(request.getAmount())
+            .currentBalance(currentBalance)
+            .build();
+}
 
-                // Receiver account can belong to anyone
-                Account receiverAccount = accountRepository
-                        .findByAccountNumber(request.getToAccountNumber())
-                        .orElseThrow(() ->
-                            new AccountNotFoundException("Receiver account not found"));
+@Override
+@Transactional
+public TransferResponse transfer(TransferRequest request) {
 
-                BigDecimal amount = request.getAmount();
+    logger.info("Transfer initiated from account {} to account {} for amount {}",
+            request.getFromAccountNumber(),
+            request.getToAccountNumber(),
+            request.getAmount());
 
-                BigDecimal senderBalance = senderAccount.getBalance();
+    // Sender account must belong to logged-in user
+    Account senderAccount =
+            getCustomerAccount(request.getFromAccountNumber());
 
-                if (senderBalance.compareTo(amount) < 0) {
-                        throw new InsufficientBalanceException(
-                        "Insufficient account balance");
-                }           
+    // Sender and receiver cannot be same
+    if (request.getFromAccountNumber()
+            .equals(request.getToAccountNumber())) {
 
-                BigDecimal updatedSenderBalance =
-                        senderBalance.subtract(amount);
+        logger.warn("Transfer rejected because sender and receiver accounts are the same: {}",
+                request.getFromAccountNumber());
 
-                BigDecimal updatedReceiverBalance =
-                        receiverAccount.getBalance().add(amount);
+        throw new SameAccountTransferException(
+        MessageConstants.SAME_ACCOUNT_TRANSFER);
+    }
 
-                senderAccount.setBalance(updatedSenderBalance);
-                receiverAccount.setBalance(updatedReceiverBalance);
+    // Receiver account can belong to anyone
+    Account receiverAccount = accountRepository
+            .findByAccountNumber(request.getToAccountNumber())
+            .orElseThrow(() -> {
+                logger.error("Receiver account not found: {}",
+                        request.getToAccountNumber());
 
-                accountRepository.save(senderAccount);
-                accountRepository.save(receiverAccount);
+                return new AccountNotFoundException( MessageConstants.RECEIVER_ACCOUNT_NOT_FOUND);
+      });
 
-                Transaction senderTransaction = Transaction.builder()
-                        .transactionType(TransactionType.TRANSFER)
-                        .amount(amount)
-                        .balanceAfterTransaction(updatedSenderBalance)
-                        .account(senderAccount)
-                        .build();
+    BigDecimal amount = request.getAmount();
 
-                Transaction receiverTransaction = Transaction.builder()
-                        .transactionType(TransactionType.TRANSFER)
-                        .amount(amount)
-                        .balanceAfterTransaction(updatedReceiverBalance)
-                        .account(receiverAccount)
-                        .build();
+    BigDecimal senderBalance = senderAccount.getBalance();
 
-                transactionRepository.save(senderTransaction);
-                transactionRepository.save(receiverTransaction);
+    if (senderBalance.compareTo(amount) < 0) {
 
-                return TransferResponse.builder()
-                    .message("Amount transferred successfully")
-                    .fromAccountNumber(senderAccount.getAccountNumber())
-                    .toAccountNumber(receiverAccount.getAccountNumber())
-                    .transferredAmount(amount)
-                    .senderBalance(updatedSenderBalance)
-                    .receiverBalance(updatedReceiverBalance)
-                    .build();
-        }
+        logger.warn("Transfer failed due to insufficient balance. Sender Account: {}, Available: {}, Requested: {}",
+                senderAccount.getAccountNumber(),
+                senderBalance,
+                amount);
 
-        @Override
-        public List<TransactionResponse> getTransactionHistory(String accountNumber) {
+        throw new InsufficientBalanceException(
+        MessageConstants.INSUFFICIENT_BALANCE);
+    }
 
-                Account account = getCustomerAccount(accountNumber);
+    BigDecimal updatedSenderBalance =
+            senderBalance.subtract(amount);
 
-                List<Transaction> transactions =transactionRepository.findByAccountOrderByCreatedAtDesc(account);
+    BigDecimal updatedReceiverBalance =
+            receiverAccount.getBalance().add(amount);
 
-                return transactions.stream()
-                        .map(transaction -> TransactionResponse.builder()
-                        .transactionType(transaction.getTransactionType())
-                        .amount(transaction.getAmount())
-                        .balanceAfterTransaction(transaction.getBalanceAfterTransaction())
-                        .createdAt(transaction.getCreatedAt())
-                        .build())
-                        .toList();
-        }
+    senderAccount.setBalance(updatedSenderBalance);
+    receiverAccount.setBalance(updatedReceiverBalance);
 
-        @Override
-        public BalanceResponse getBalance(String accountNumber) {
+    accountRepository.save(senderAccount);
+    accountRepository.save(receiverAccount);
 
-                Account account = getCustomerAccount(accountNumber);
+    Transaction senderTransaction = Transaction.builder()
+            .transactionType(TransactionType.TRANSFER)
+            .amount(amount)
+            .balanceAfterTransaction(updatedSenderBalance)
+            .account(senderAccount)
+            .build();
 
-                return BalanceResponse.builder()
-                        .accountNumber(account.getAccountNumber())
-                        .balance(account.getBalance())
-                        .build();
-        }
+    Transaction receiverTransaction = Transaction.builder()
+            .transactionType(TransactionType.TRANSFER)
+            .amount(amount)
+            .balanceAfterTransaction(updatedReceiverBalance)
+            .account(receiverAccount)
+            .build();
+
+    transactionRepository.save(senderTransaction);
+    transactionRepository.save(receiverTransaction);
+
+    logger.info("Transfer successful. From: {} To: {} Amount: {}",
+            senderAccount.getAccountNumber(),
+            receiverAccount.getAccountNumber(),
+            amount);
+
+    return TransferResponse.builder()
+            .message(MessageConstants.AMOUNT_TRANSFERRED)
+            .fromAccountNumber(senderAccount.getAccountNumber())
+            .toAccountNumber(receiverAccount.getAccountNumber())
+            .transferredAmount(amount)
+            .senderBalance(updatedSenderBalance)
+            .receiverBalance(updatedReceiverBalance)
+            .build();
+}
+
+@Override
+public List<TransactionResponse> getTransactionHistory(String accountNumber) {
+
+    logger.debug("Fetching transaction history for account {}",
+            accountNumber);
+
+    Account account = getCustomerAccount(accountNumber);
+
+    List<Transaction> transactions =
+            transactionRepository.findByAccountOrderByCreatedAtDesc(account);
+
+    logger.info("Retrieved {} transaction(s) for account {}",
+            transactions.size(),
+            accountNumber);
+
+    return transactions.stream()
+            .map(transaction -> TransactionResponse.builder()
+                    .transactionType(transaction.getTransactionType())
+                    .amount(transaction.getAmount())
+                    .balanceAfterTransaction(transaction.getBalanceAfterTransaction())
+                    .createdAt(transaction.getCreatedAt())
+                    .build())
+            .toList();
+}
+
+@Override
+public BalanceResponse getBalance(String accountNumber) {
+
+    logger.debug("Fetching balance for account {}",
+            accountNumber);
+
+    Account account = getCustomerAccount(accountNumber);
+
+    logger.info("Balance enquiry completed for account {}",
+            accountNumber);
+
+    return BalanceResponse.builder()
+            .accountNumber(account.getAccountNumber())
+            .balance(account.getBalance())
+            .build();
+}
 }
